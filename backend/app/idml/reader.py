@@ -44,14 +44,29 @@ class IDMLReadError(Exception):
     pass
 
 
+def _parse_item_transform(element: etree._Element) -> tuple[float, float]:
+    """Return (tx, ty) translation from ItemTransform attribute ('a b c d tx ty')."""
+    raw = element.get("ItemTransform", "")
+    if not raw:
+        return 0.0, 0.0
+    parts = raw.split()
+    if len(parts) >= 6:
+        try:
+            return float(parts[4]), float(parts[5])
+        except ValueError:
+            pass
+    return 0.0, 0.0
+
+
 def _parse_bounds(element: etree._Element) -> tuple[float, float, float, float]:
-    """Return (x, y, width, height) from a GeometricBounds attribute."""
+    """Return (x, y, width, height) from GeometricBounds + ItemTransform translation."""
     raw = element.get(_BOUNDS_ATTR, "")
     if not raw:
         return 0.0, 0.0, 0.0, 0.0
     try:
         top, left, bottom, right = (float(v) for v in raw.split())
-        return left, top, right - left, bottom - top
+        tx, ty = _parse_item_transform(element)
+        return left + tx, top + ty, right - left, bottom - top
     except ValueError:
         return 0.0, 0.0, 0.0, 0.0
 
@@ -134,6 +149,31 @@ def _parse_spread_xml(
     return text_frames, image_frames, spread_id, page_count
 
 
+def _style_prop(element: etree._Element, name: str, default: str = "") -> str:
+    """
+    Read a style property from IDML, checking <Properties> children first then
+    the direct attribute. IDML stores font properties (AppliedFont, PointSize, etc.)
+    as child elements of <Properties>, not as direct XML attributes.
+    """
+    props_elem = element.find("Properties")
+    if props_elem is not None:
+        child = props_elem.find(name)
+        if child is not None and child.text:
+            return child.text
+    return element.get(name, default)
+
+
+def _style_float(element: etree._Element, name: str) -> float | None:
+    val = _style_prop(element, name)
+    if val:
+        try:
+            result = float(val)
+            return result if result != 0.0 else None
+        except ValueError:
+            pass
+    return None
+
+
 def _parse_styles(xml_bytes: bytes) -> StyleCatalog:
     root = etree.fromstring(xml_bytes)
     para_styles: list[ParagraphStyle] = []
@@ -141,19 +181,19 @@ def _parse_styles(xml_bytes: bytes) -> StyleCatalog:
 
     for ps in root.iter("ParagraphStyle"):
         props = ParagraphStyleProperties(
-            font_family=ps.get("AppliedFont"),
-            font_style=ps.get("FontStyle"),
-            point_size=float(ps.get("PointSize", 0)) or None,
-            leading=float(ps.get("Leading", 0)) or None,
-            alignment=ps.get("Justification"),
-            space_before=float(ps.get("SpaceBefore", 0)) or None,
-            space_after=float(ps.get("SpaceAfter", 0)) or None,
+            font_family=_style_prop(ps, "AppliedFont") or None,
+            font_style=_style_prop(ps, "FontStyle") or None,
+            point_size=_style_float(ps, "PointSize"),
+            leading=_style_float(ps, "Leading"),
+            alignment=ps.get("Justification") or None,
+            space_before=_style_float(ps, "SpaceBefore"),
+            space_after=_style_float(ps, "SpaceAfter"),
         )
         para_styles.append(
             ParagraphStyle(
                 self_id=_attr(ps, "Self"),
                 name=_attr(ps, "Name"),
-                based_on=ps.get("BasedOn") or None,
+                based_on=_style_prop(ps, "BasedOn") or ps.get("BasedOn") or None,
                 properties=props,
             )
         )
@@ -163,9 +203,9 @@ def _parse_styles(xml_bytes: bytes) -> StyleCatalog:
             CharacterStyle(
                 self_id=_attr(cs, "Self"),
                 name=_attr(cs, "Name"),
-                font_family=cs.get("AppliedFont"),
-                font_style=cs.get("FontStyle"),
-                point_size=float(cs.get("PointSize", 0)) or None,
+                font_family=_style_prop(cs, "AppliedFont") or None,
+                font_style=_style_prop(cs, "FontStyle") or None,
+                point_size=_style_float(cs, "PointSize"),
             )
         )
 
@@ -197,12 +237,10 @@ def _parse_story(xml_bytes: bytes, story_id: str) -> StoryContent:
         if combined:
             paragraphs.append(combined)
 
-    has_overflow = root.find(".//*[@Overflows='true']") is not None
-
     return StoryContent(
         story_id=story_id,
         paragraphs=paragraphs,
-        has_overflow=has_overflow,
+        has_overflow=False,  # overflow is computed dynamically by InDesign, not stored in IDML
     )
 
 

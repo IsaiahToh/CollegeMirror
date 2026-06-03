@@ -55,42 +55,52 @@ def _get_story_id(text_frame: etree._Element) -> str | None:
     return text_frame.get("ParentStory")
 
 
-def _get_content_elements(story_root: etree._Element) -> list[etree._Element]:
-    """Return all <Content> elements in a story, in document order."""
-    return story_root.findall(".//" + _CONTENT_TAG)
-
-
-def _clear_story_content(story_root: etree._Element) -> None:
-    """Remove all text from Content elements in a story."""
-    for content in _get_content_elements(story_root):
-        content.text = ""
-
-
-def _set_story_text(story_root: etree._Element, text: str) -> None:
+def _get_story_element(story_root: etree._Element) -> etree._Element:
     """
-    Set the text content of a story. Splits on newlines to distribute across
-    multiple Content elements if they exist; otherwise pours into the first one.
+    Return the inner <Story> element from an idPkg:Story wrapper root.
+    Story XML files have a <idPkg:Story> root wrapping the actual <Story> child.
     """
-    contents = _get_content_elements(story_root)
-    if not contents:
+    inner = story_root.find("Story")
+    return inner if inner is not None else story_root
+
+
+def _rebuild_story_content(
+    story_root: etree._Element, text: str, paragraph_style: str
+) -> None:
+    """
+    Reconstruct a story's content with correct IDML nesting:
+    ParagraphStyleRange > CharacterStyleRange > Content.
+
+    Clones the first existing ParagraphStyleRange as a structural template so
+    character styles and local overrides are preserved. One PSR is emitted per
+    newline-delimited paragraph in `text`.
+    """
+    inner = _get_story_element(story_root)
+
+    template_psr = inner.find("ParagraphStyleRange")
+    if template_psr is None:
+        # No existing structure — fall back to direct Content mutation
+        for c in story_root.findall(".//" + _CONTENT_TAG):
+            c.text = text
         return
 
-    # Split text into paragraphs (newline-delimited) and fill Content elements
-    paragraphs = [p.strip() for p in text.split("\n") if p.strip()]
-    if not paragraphs:
-        paragraphs = [text]
+    template_clone = copy.deepcopy(template_psr)
 
-    for i, content_elem in enumerate(contents):
-        if i < len(paragraphs):
-            content_elem.text = paragraphs[i]
-        else:
-            content_elem.text = ""
+    # Remove all existing ParagraphStyleRange direct children
+    for psr in list(inner.findall("ParagraphStyleRange")):
+        inner.remove(psr)
 
+    paragraphs = [p for p in text.split("\n") if p.strip()] or [text]
+    for para_text in paragraphs:
+        new_psr = copy.deepcopy(template_clone)
+        new_psr.set("AppliedParagraphStyle", paragraph_style)
 
-def _apply_paragraph_style(text_frame: etree._Element, paragraph_style: str) -> None:
-    """Update the AppliedParagraphStyle attribute on a TextFrame's paragraph ranges."""
-    for pr in text_frame.findall(".//ParagraphStyleRange"):
-        pr.set("AppliedParagraphStyle", paragraph_style)
+        # Set text on the first Content element; blank out any extras
+        content_elems = new_psr.findall(".//" + _CONTENT_TAG)
+        for i, content in enumerate(content_elems):
+            content.text = para_text if i == 0 else ""
+
+        inner.append(new_psr)
 
 
 def _clone_spread(
@@ -261,8 +271,7 @@ class IDMLWriter:
                             continue
 
                         story_root = story_roots[story_fname]
-                        _set_story_text(story_root, assignment.text)
-                        _apply_paragraph_style(tf, assignment.paragraph_style)
+                        _rebuild_story_content(story_root, assignment.text, assignment.paragraph_style)
 
                     # Write the modified spread to output
                     out_zf.writestr(spread_filename, _serialise_xml(cloned_spread))
@@ -270,11 +279,6 @@ class IDMLWriter:
                 # Write all (possibly modified) story files
                 for story_fname, story_root in story_roots.items():
                     out_zf.writestr(story_fname, _serialise_xml(story_root))
-
-                # Check for overflow in any story
-                for story_fname, story_root in story_roots.items():
-                    if story_root.find(".//*[@Overflows='true']") is not None:
-                        warnings.append(f"Overset text detected in {story_fname}")
 
                 # Update designmap.xml with new spread list
                 designmap_root = _read_xml(template_zf, "designmap.xml")

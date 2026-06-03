@@ -1,6 +1,9 @@
 """
 Generation pipeline — orchestrates Word parsing, layout planning, and IDML writing
 for a new document request.
+
+When INDESIGN_MCP_ENABLED=true, the InDesignWriter drives the output via the
+running InDesign instance. Otherwise the XML-based IDMLWriter is used.
 """
 
 import datetime
@@ -8,10 +11,12 @@ import logging
 from pathlib import Path
 
 from backend.app.ai.planner import plan_layout
+from backend.app.core.config import get_settings
 from backend.app.core.storage import Storage
 from backend.app.idml.writer import IDMLWriter
 from backend.app.models.design_schema import DesignSchema
 from backend.app.models.job import Job, JobStatus
+from backend.app.models.layout_plan import LayoutPlan
 from backend.app.word.reader import read_docx
 
 logger = logging.getLogger(__name__)
@@ -37,7 +42,19 @@ def _find_template_idml(schema: DesignSchema, storage: Storage) -> Path:
     return template_path
 
 
-def run_generation(job_id: str, storage: Storage) -> None:
+async def _write_idml(
+    template_path: Path, layout_plan: LayoutPlan, output_path: Path
+) -> list[str]:
+    """Route IDML writing through InDesign or the XML writer based on config."""
+    if get_settings().indesign_mcp_enabled:
+        from backend.app.idml.writer_indesign import InDesignWriter
+        writer = InDesignWriter(template_path)
+        return await writer.apply_plan(layout_plan, output_path)
+    writer = IDMLWriter(template_path)
+    return writer.apply_plan(layout_plan, output_path)
+
+
+async def run_generation(job_id: str, storage: Storage) -> None:
     """
     Execute the full generation pipeline for a job.
 
@@ -72,11 +89,10 @@ def run_generation(job_id: str, storage: Storage) -> None:
         # 4. Find template IDML
         template_path = _find_template_idml(schema, storage)
 
-        # 5. Write new IDML
+        # 5. Write new IDML (InDesign or XML writer)
         output_path = storage.job_output_path(job_id)
         logger.info("Writing IDML to %s", output_path)
-        writer = IDMLWriter(template_path)
-        warnings = writer.apply_plan(layout_plan, output_path)
+        warnings = await _write_idml(template_path, layout_plan, output_path)
 
         # 6. Update job to completed
         job.status = JobStatus.COMPLETED

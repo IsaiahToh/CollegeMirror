@@ -1,12 +1,17 @@
 """
 Ingestion pipeline — orchestrates IDML + Word parsing and Claude content mapping
 to produce and persist a DesignSchema for an example set.
+
+When INDESIGN_MCP_ENABLED=true, IDML files are opened in the running InDesign
+instance for authoritative layout extraction. Otherwise the XML-based reader is
+used (suitable for CI / environments without InDesign).
 """
 
 import logging
 from pathlib import Path
 
 from backend.app.ai.mapper import map_content
+from backend.app.core.config import get_settings
 from backend.app.core.storage import Storage
 from backend.app.idml.models import DesignLayout, TextFrame
 from backend.app.idml.reader import read_idml
@@ -118,7 +123,15 @@ def _derive_color_palette(layouts: list[DesignLayout]) -> list[ColorSwatch]:
     return palette
 
 
-def run_ingestion(
+async def _read_idml(path: Path) -> DesignLayout:
+    """Route IDML reading through InDesign or the XML parser based on config."""
+    if get_settings().indesign_mcp_enabled:
+        from backend.app.idml.reader_indesign import read_idml_indesign
+        return await read_idml_indesign(path)
+    return read_idml(path)
+
+
+async def run_ingestion(
     example_set_id: str,
     pairs: list[tuple[Path, list[Path]]],
     storage: Storage,
@@ -150,7 +163,7 @@ def run_ingestion(
 
     for idml_path, word_paths in pairs:
         logger.info("Parsing IDML: %s", idml_path.name)
-        layout = read_idml(idml_path)
+        layout = await _read_idml(idml_path)
         layouts.append(layout)
 
         word_docs = []

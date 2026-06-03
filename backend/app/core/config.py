@@ -18,6 +18,12 @@ class Settings(BaseSettings):
     gemini_api_key: str = ""
     gemini_model: str = "gemini-2.0-flash"
 
+    # ── InDesign MCP ─────────────────────────────────────────────────────────
+    # Set INDESIGN_MCP_ENABLED=true and point INDESIGN_MCP_SERVER_PATH to the
+    # index.js of the indesign-mcp-server checkout. Requires InDesign running.
+    indesign_mcp_enabled: bool = False
+    indesign_mcp_server_path: str = ""
+
     # ── Storage & server ─────────────────────────────────────────────────────
     storage_path: Path = Path("./storage")
     frontend_url: str = "http://localhost:5173"

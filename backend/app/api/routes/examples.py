@@ -102,14 +102,14 @@ def _build_pairs(
     return [(idml, [word]) for idml, word in zip(idml_paths, word_paths, strict=True)]
 
 
-def _run_ingestion_bg(
+async def _run_ingestion_bg(
     example_set_id: str,
     pairs: list[tuple[Path, list[Path]]],
     storage: Storage,
 ) -> None:
     storage.save_ingestion_status(example_set_id, {"status": "running", "error": None})
     try:
-        run_ingestion(example_set_id, pairs, storage)
+        await run_ingestion(example_set_id, pairs, storage)
         storage.save_ingestion_status(example_set_id, {"status": "completed", "error": None})
     except Exception as exc:
         logger.exception("Ingestion failed for example_set_id=%s", example_set_id)
