@@ -50,6 +50,8 @@ Rule: Claude handles *reasoning* (which content goes where, what the layout plan
 ```
 CollegeMirror/
 ├── CLAUDE.md
+├── ARCHITECTURE.md            # detailed data models, API surface, design decisions
+├── INSTRUCTIONS.md            # end-user guide (format requirements, how to run)
 ├── pyproject.toml
 ├── .env / .env.example
 ├── .gitignore
@@ -107,7 +109,7 @@ CollegeMirror/
 │
 ├── tests/
 │   ├── conftest.py
-│   ├── fixtures/                          # Small stripped IDML + docx files
+│   ├── fixtures/                          # Small stripped IDML + docx files (create if missing)
 │   ├── test_idml/
 │   ├── test_word/
 │   └── test_pipeline/
@@ -186,6 +188,7 @@ LOG_LEVEL=INFO
 
 ### InDesign MCP
 - All InDesign automation goes through `idml/indesign_client.py`. Never call the MCP server directly from business logic.
+- The MCP server (`node index.js`) is **spawned per job** by the Python `stdio_client` — it is not a persistent background process. No manual startup required.
 - Use `InDesignClient` as an async context manager — one context per job. Do not share sessions across jobs.
 - ExtendScript passed to `execute_indesign_code` must suppress UI interaction: `app.scriptPreferences.userInteractionLevel = UserInteractionLevels.NEVER_INTERACT`.
 - Wrap every item-level operation in the ExtendScript in `try/catch` — a single bad frame must not abort the whole extraction.
