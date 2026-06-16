@@ -5,29 +5,28 @@ export default {
     extend: {
       fontFamily: {
         sans: ["Plus Jakarta Sans", "system-ui", "sans-serif"],
+        display: ["Fraunces", "Georgia", "serif"],
       },
       colors: {
-        brand: {
-          50:  "#f0f9ff",
-          100: "#e0f2fe",
-          200: "#bae6fd",
-          300: "#7dd3fc",
-          400: "#38bdf8",
-          500: "#0ea5e9",
-          600: "#0284c7",
-          700: "#0369a1",
-          800: "#075985",
-          900: "#0c4a6e",
+        ink: {
+          700: "#1A2238",
+          800: "#101626",
+          900: "#0A0E1A",
+          950: "#06080F",
         },
-        navy: {
-          700: "#1e293b",
-          800: "#0f172a",
-          900: "#020617",
+        accent: {
+          200: "#A5F0FF",
+          300: "#7DE9FD",
+          400: "#4ADCF5",
+          500: "#22C8E6",
+          600: "#0FA8C9",
+          700: "#0B86A3",
         },
       },
       boxShadow: {
-        card: "0 1px 3px 0 rgb(0 0 0 / 0.06), 0 1px 2px -1px rgb(0 0 0 / 0.06)",
-        "card-md": "0 4px 6px -1px rgb(0 0 0 / 0.07), 0 2px 4px -2px rgb(0 0 0 / 0.07)",
+        glass: "0 8px 40px rgba(2, 6, 18, 0.45)",
+        glow: "0 0 28px rgba(34, 200, 230, 0.35)",
+        "glow-sm": "0 0 16px rgba(34, 200, 230, 0.22)",
       },
     },
   },

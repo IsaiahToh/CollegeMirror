@@ -12,7 +12,12 @@ applies it by:
      by paragraph style name (same heuristic as the XML writer, but in JS).
   3. Setting story.contents — InDesign creates one paragraph per \\n.
   4. Applying the named paragraph style to all paragraphs in the story.
-  5. Reporting overflow warnings per story.
+  5. Clearing any text frame that received no assignment, so the example's
+     original words never leak into the output.
+  6. Removing placed source-document images (content figures), while keeping
+     full-bleed background / design images.
+  7. Shrinking each filled frame to fit short content (shrink-only — overset
+     frames are left at template size and flagged, never grown or truncated).
 
 Returns a list of warning strings (overset text, unmatched frames, etc.).
 """
@@ -119,6 +124,35 @@ _APPLY_PLAN_SCRIPT = """\
                 warnings.push("No frame available for role '" + a.role + "' on spread " + sp.spread_index);
             }}
         }}
+
+        // ── clear text frames that received no assignment ─────────────────────
+        // Otherwise the example's original words leak into the output.
+        for (var ci = 0; ci < tfList.length; ci++) {{
+            var ctf = tfList[ci];
+            if (usedIds[ctf.id]) continue;
+            try {{ ctf.parentStory.contents = ""; }} catch(e) {{}}
+            warnings.push("Cleared unassigned text frame id=" + ctf.id + " on spread " + sp.spread_index);
+        }}
+
+        // ── remove source-document images, keep full-bleed backgrounds ────────
+        try {{
+            var pageW = doc.documentPreferences.pageWidth;
+            var pageH = doc.documentPreferences.pageHeight;
+            var pageArea = pageW * pageH;
+            var graphics = spread.allGraphics;
+            for (var gi = graphics.length - 1; gi >= 0; gi--) {{
+                try {{
+                    var frame = graphics[gi].parent;
+                    var fb = frame.geometricBounds; // [y1, x1, y2, x2]
+                    var fArea = Math.abs((fb[2] - fb[0]) * (fb[3] - fb[1]));
+                    if (pageArea > 0 && fArea >= 0.8 * pageArea) continue; // background — keep
+                    frame.remove();
+                    warnings.push("Removed source image frame on spread " + sp.spread_index + " (content figure)");
+                }} catch(e) {{}}
+            }}
+        }} catch(e) {{
+            warnings.push("Image cleanup failed on spread " + sp.spread_index + ": " + e.message);
+        }}
     }}
 
     return JSON.stringify({{ warnings: warnings }});
@@ -140,12 +174,26 @@ function applyAssignment(doc, tf, assignment, warnings) {{
             warnings.push("Paragraph style not found: '" + assignment.paragraph_style + "'");
         }}
 
-        // Report overflow
+        // Shrink the frame to fit short content, or report overflow for long
+        // content. Shrink-only: an overset frame is left at template size (all
+        // text is preserved as overset, never cut off) and flagged for the
+        // designer; we never grow a frame into its neighbours.
         var overflows = false;
         try {{ overflows = !!story.overflows; }} catch(e) {{}}
         if (overflows) {{
             warnings.push("Overset text in spread " + (assignment.role || "?") +
                           " (frame id=" + tf.id + ")");
+        }} else {{
+            try {{
+                var ob = tf.geometricBounds;        // [top, left, bottom, right]
+                tf.fit(FitOptions.FRAME_TO_CONTENT);
+                var nb = tf.geometricBounds;
+                // Preserve original top/left/right and width; only move the
+                // bottom edge up so the frame hugs the text. Never grow.
+                tf.geometricBounds = [ob[0], ob[1], Math.min(nb[2], ob[2]), ob[3]];
+            }} catch(e) {{
+                warnings.push("Could not fit frame id=" + tf.id + ": " + e.message);
+            }}
         }}
     }} catch(e) {{
         warnings.push("Error applying assignment role='" + (assignment.role || "?") +

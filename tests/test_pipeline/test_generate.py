@@ -4,8 +4,6 @@ import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from backend.app.models.job import Job
 
 
@@ -24,7 +22,7 @@ def _write_minimal_job(storage: MagicMock, job: Job, job_dir: Path, idml_bytes: 
     storage.job_output_path.return_value = job_dir / "output.idml"
 
 
-def test_run_generation_happy_path(tmp_path: Path, minimal_idml_bytes: bytes) -> None:
+async def test_run_generation_happy_path(tmp_path: Path, minimal_idml_bytes: bytes) -> None:
     """
     Smoke test for the full generation pipeline with Claude mocked.
     Skipped until fixture IDML and docx files are available.
@@ -74,7 +72,7 @@ def test_run_generation_happy_path(tmp_path: Path, minimal_idml_bytes: bytes) ->
         storage.job_output_path.return_value = job_dir / "output.idml"
 
         from backend.app.pipeline.generate import run_generation
-        run_generation("job_001", storage)
+        await run_generation("job_001", storage)
 
         updated_calls = [c for c in storage.save_job_meta.call_args_list]
         assert updated_calls, "save_job_meta should have been called"

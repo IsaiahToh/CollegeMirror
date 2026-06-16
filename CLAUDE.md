@@ -225,16 +225,46 @@ LOG_LEVEL=INFO
 
 ## Agent Delegation Rules
 
-| Agent | Scope | Must NOT touch |
-|---|---|---|
-| **IDML agent** | `idml/`, `models/design_schema.py` | Word, AI, pipeline |
-| **Word agent** | `word/` | IDML internals, AI |
-| **AI/prompt agent** | `ai/`, prompt `.md` files | IDML assembly, Word parsing |
-| **Pipeline agent** | `pipeline/`, `api/routes/` | Business logic below orchestration |
-| **Frontend agent** | `frontend/` | Backend source |
-| **Test agent** | `tests/` only | Source files (read-only reference) |
+Full-stack work on this project is **delegated by default**. Claude Code (the main session) acts as orchestrator: it routes work to subagents, integrates their results, and never implements a multi-file feature inline when a matching agent exists below.
+
+### When to delegate vs. work inline
+
+**Delegate** when a task:
+- touches 2+ domains (e.g., a new API endpoint *and* its frontend page), or
+- is a self-contained domain task spanning multiple files (new component, new pipeline step, new test module), or
+- requires broad codebase searching before acting (use `Explore` first, don't grep inline across the repo).
+
+**Work inline** (no subagent) only for: single-file edits, config/env tweaks, docs, dependency bumps, answering questions about code already in context.
+
+### Routing table
+
+| Work | Dispatch to | Writable scope | Must NOT touch |
+|---|---|---|---|
+| Backend Python — IDML read/write, InDesign MCP (`idml/`, `models/design_schema.py`) | `general-purpose` (brief it as the *IDML agent*) | `backend/app/idml/`, `backend/app/models/design_schema.py` | `word/`, `ai/`, `pipeline/`, `frontend/` |
+| Backend Python — Word parsing (`word/`) | `general-purpose` (brief it as the *Word agent*) | `backend/app/word/` | IDML internals, `ai/`, `frontend/` |
+| Backend Python — LLM calls & prompts (`ai/`, prompt `.md` files) | `general-purpose` (brief it as the *AI agent*) | `backend/app/ai/` | IDML assembly, Word parsing, `frontend/` |
+| Orchestration & API surface (`pipeline/`, `api/`, `core/`, `models/layout_plan.py`, `models/job.py`) | `general-purpose` (brief it as the *Pipeline agent*) | `backend/app/pipeline/`, `backend/app/api/`, `backend/app/core/` | Business logic below orchestration, `frontend/` |
+| Frontend — components, pages, state, styling, Vite/Tailwind config | `ui-builder` | `frontend/` | All backend source |
+| Tests, lint, type check, coverage, code-quality audit | `qa-tester` | `tests/` only | Application source (read-only reference) |
+| Persistent-data design (future: Celery/Redis, S3, job metadata DB) | `db-architect` | Backend data layer | `frontend/`, prompts, IDML internals |
+| Broad codebase search / "where is X handled?" | `Explore` | read-only | — |
+| Implementation planning for multi-domain features | `Plan` or `feature-dev:code-architect` | read-only | — |
+| Post-implementation review | `feature-dev:code-reviewer` | read-only | — |
+
+When briefing a `general-purpose` agent, paste its row above (writable scope + must-not-touch) into the prompt, plus the relevant Coding Conventions sections — subagents do not inherit this file's context automatically.
+
+### Full-stack feature workflow
+
+1. **Explore** (if the relevant code isn't already in context): dispatch `Explore` to map the touched areas.
+2. **Contract first**: the orchestrator fixes the cross-domain interface up front — pydantic models, API request/response shapes, job statuses — so backend and frontend agents can work from the same contract without coordinating.
+3. **Implement in parallel**: dispatch independent domain agents *in a single message* (e.g., Pipeline agent + `ui-builder`). Never give two concurrent agents overlapping writable scopes; sequence them instead if scopes collide.
+4. **Verify**: after implementation agents return, dispatch `qa-tester` to write/extend tests and run `uv run pytest`, `uv run ruff check .`, and `uv run pyright backend/`. A feature is not done until qa-tester reports green output.
+5. **Integrate**: the orchestrator resolves any cross-agent mismatches itself (small inline edits are fine here) and summarizes what each agent changed.
+
+### Rules for all agents
 
 - Agents must read relevant files before editing. Never modify based on assumptions.
 - Agents working on IDML output must validate by opening the result in InDesign (or unzipping and parsing the XML for the fallback path) before returning.
 - When uncertain about design intent, surface the question rather than guess.
 - No agent hardcodes file paths. Use `core/config.py` settings threaded via `core/storage.py`.
+- Agent results are not trusted blindly: the orchestrator spot-checks claimed changes (diff or key files) before reporting them as done.

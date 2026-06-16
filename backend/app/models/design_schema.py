@@ -80,6 +80,9 @@ class ExampleAnalysis(BaseModel):
     spread_count: int
     page_count: int
 
+    # Per-example design observations returned by Claude during content mapping.
+    document_context_notes: str = ""
+
 
 class DesignSchema(BaseModel):
     """

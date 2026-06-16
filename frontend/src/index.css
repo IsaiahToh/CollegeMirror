@@ -1,22 +1,99 @@
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   body {
-    @apply bg-slate-50 text-slate-900 antialiased;
-    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+    @apply bg-ink-950 text-slate-300 antialiased;
+    font-family: "Plus Jakarta Sans", system-ui, sans-serif;
   }
 
   *:focus-visible {
-    @apply outline-none ring-2 ring-brand-500 ring-offset-2;
+    @apply outline-none ring-2 ring-accent-400/70 ring-offset-2 ring-offset-ink-950;
+  }
+
+  ::selection {
+    @apply bg-accent-500/30 text-white;
   }
 }
 
+@layer components {
+  /* Frosted glass surface with a top inner-highlight */
+  .glass {
+    @apply relative rounded-2xl border border-white/10 bg-white/[0.05] shadow-glass backdrop-blur-xl;
+  }
+  .glass::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    border-radius: 1rem 1rem 0 0;
+    background: linear-gradient(90deg, transparent 5%, rgba(255, 255, 255, 0.28) 50%, transparent 95%);
+    pointer-events: none;
+  }
+
+  .glass-input {
+    @apply w-full rounded-xl border border-white/10 bg-white/[0.04] px-3.5 py-2.5 text-sm text-slate-100 placeholder:text-slate-600 backdrop-blur transition-colors focus:border-accent-400/40;
+  }
+
+  .btn-primary {
+    @apply inline-flex cursor-pointer items-center gap-2 rounded-xl bg-gradient-to-r from-accent-500 to-accent-600 px-6 py-2.5 text-sm font-semibold text-ink-950 shadow-glow-sm transition-all duration-200 hover:shadow-glow disabled:cursor-not-allowed disabled:from-white/10 disabled:to-white/10 disabled:text-slate-600 disabled:shadow-none;
+  }
+
+  .aurora-blob {
+    @apply pointer-events-none absolute rounded-full blur-3xl;
+  }
+
+  /* Film-grain overlay — SVG turbulence noise, barely visible */
+  .grain {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    opacity: 0.035;
+  }
+}
+
+@keyframes drift-a {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(6vw, -5vh) scale(1.15); }
+}
+@keyframes drift-b {
+  0%, 100% { transform: translate(0, 0) scale(1.05); }
+  50% { transform: translate(-7vw, 6vh) scale(0.92); }
+}
+@keyframes drift-c {
+  0%, 100% { transform: translate(0, 0) scale(0.95); }
+  50% { transform: translate(4vw, -7vh) scale(1.1); }
+}
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes shimmer {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(300%); }
+}
+
 @layer utilities {
-  .animate-spin-slow {
-    animation: spin 2s linear infinite;
+  .animate-drift-a { animation: drift-a 34s ease-in-out infinite; }
+  .animate-drift-b { animation: drift-b 40s ease-in-out infinite; }
+  .animate-drift-c { animation: drift-c 27s ease-in-out infinite; }
+  .animate-fade-up {
+    opacity: 0;
+    animation: fade-up 0.7s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+  .animate-shimmer { animation: shimmer 1.8s ease-in-out infinite; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-drift-a,
+  .animate-drift-b,
+  .animate-drift-c,
+  .animate-shimmer {
+    animation: none;
+  }
+  .animate-fade-up {
+    animation: none;
+    opacity: 1;
   }
 }

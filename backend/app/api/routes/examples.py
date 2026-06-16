@@ -38,6 +38,22 @@ class ExampleSetInfo(BaseModel):
     has_schema: bool
 
 
+_ALLOWED_UPLOAD_EXTENSIONS = (".idml", ".docx")
+
+
+def _validate_uploads(files: list[UploadFile]) -> None:
+    """Reject empty filenames and anything that is not an .idml or .docx file."""
+    for f in files:
+        name = (f.filename or "").strip()
+        if not name:
+            raise HTTPException(status_code=400, detail="Uploaded file has an empty filename.")
+        if not name.lower().endswith(_ALLOWED_UPLOAD_EXTENSIONS):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unsupported file type for '{name}'. Only .idml and .docx files are accepted.",
+            )
+
+
 async def _save_all_uploads(
     files: list[UploadFile],
     example_set_id: str,
@@ -136,6 +152,7 @@ async def upload_examples(
     """
     if not files:
         raise HTTPException(status_code=400, detail="No files uploaded.")
+    _validate_uploads(files)
 
     example_set_id = storage.new_example_set_id()
     saved = await _save_all_uploads(files, example_set_id, storage)

@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import { apiUrl } from "../lib/api";
+import { saveExampleSetId } from "../lib/storage";
 
 interface ExamplePair {
   id: number;
@@ -23,7 +25,7 @@ function useIngestionStatus(exampleSetId: string | null) {
 
     const poll = async () => {
       try {
-        const res = await fetch(`/examples/${exampleSetId}/status`);
+        const res = await fetch(apiUrl(`/examples/${exampleSetId}/status`));
         if (!res.ok) return;
         const data = await res.json();
         if (!cancelled) {
@@ -82,26 +84,30 @@ function PairCard({
   const isComplete = pair.idmlFile !== null && pair.wordFiles.length > 0;
 
   return (
-    <div className={`rounded-xl border bg-white shadow-card overflow-hidden transition-all duration-150 ${isComplete ? "border-slate-200" : "border-slate-200"}`}>
+    <div className="glass overflow-hidden transition-all duration-200 hover:border-white/20">
       {/* Card header */}
-      <div className="flex items-center justify-between px-5 py-3.5 bg-slate-50 border-b border-slate-100">
+      <div className="flex items-center justify-between border-b border-white/[0.06] px-5 py-3.5">
         <div className="flex items-center gap-2.5">
-          <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${isComplete ? "bg-brand-600 text-white" : "bg-slate-200 text-slate-500"}`}>
+          <div
+            className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold transition-colors ${
+              isComplete ? "bg-accent-500 text-ink-950 shadow-glow-sm" : "bg-white/[0.07] text-slate-400"
+            }`}
+          >
             {isComplete ? (
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
               </svg>
             ) : index + 1}
           </div>
-          <span className="text-sm font-semibold text-slate-700">Example pair {index + 1}</span>
+          <span className="text-sm font-semibold text-slate-200">Example pair {index + 1}</span>
         </div>
         {canRemove && (
           <button
             type="button"
             onClick={onRemove}
-            className="text-xs text-slate-400 hover:text-red-500 font-medium transition-colors cursor-pointer flex items-center gap-1"
+            className="flex cursor-pointer items-center gap-1 text-xs font-medium text-slate-500 transition-colors hover:text-rose-400"
           >
-            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
             </svg>
             Remove
@@ -109,27 +115,27 @@ function PairCard({
         )}
       </div>
 
-      <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-5">
+      <div className="grid grid-cols-1 gap-5 p-5 md:grid-cols-2">
         {/* IDML slot */}
         <div>
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2.5">
+          <p className="mb-2.5 text-xs font-semibold uppercase tracking-wider text-slate-500">
             InDesign file (.idml)
           </p>
           {pair.idmlFile ? (
-            <div className="flex items-center gap-3 bg-indigo-50 border border-indigo-200 rounded-lg px-3 py-2.5">
-              <div className="w-8 h-8 rounded-md bg-indigo-100 flex items-center justify-center shrink-0">
-                <svg className="w-4 h-4 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <div className="flex items-center gap-3 rounded-xl border border-accent-400/20 bg-accent-500/[0.08] px-3 py-2.5">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-accent-500/15">
+                <svg className="h-4 w-4 text-accent-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
               </div>
-              <span className="text-xs text-indigo-800 font-medium truncate flex-1">{pair.idmlFile.name}</span>
+              <span className="flex-1 truncate text-xs font-medium text-accent-200">{pair.idmlFile.name}</span>
               <button
                 type="button"
                 onClick={() => onUpdate({ ...pair, idmlFile: null })}
                 aria-label="Remove IDML file"
-                className="w-5 h-5 flex items-center justify-center rounded text-indigo-400 hover:text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
+                className="flex h-5 w-5 cursor-pointer items-center justify-center rounded text-accent-300/60 transition-colors hover:bg-rose-500/10 hover:text-rose-400"
               >
-                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
@@ -138,9 +144,9 @@ function PairCard({
             <button
               type="button"
               onClick={() => idmlRef.current?.click()}
-              className="w-full rounded-lg border-2 border-dashed border-slate-200 hover:border-indigo-300 hover:bg-indigo-50 py-5 text-sm text-slate-400 hover:text-indigo-600 transition-all duration-150 cursor-pointer"
+              className="w-full cursor-pointer rounded-xl border-2 border-dashed border-white/15 py-5 text-sm text-slate-500 transition-all duration-200 hover:border-accent-400/50 hover:bg-accent-500/[0.05] hover:text-accent-300"
             >
-              <svg className="w-5 h-5 mx-auto mb-1 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <svg className="mx-auto mb-1 h-5 w-5 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
               </svg>
               Select .idml file
@@ -151,25 +157,25 @@ function PairCard({
 
         {/* Word docs slot */}
         <div>
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2.5">
+          <p className="mb-2.5 text-xs font-semibold uppercase tracking-wider text-slate-500">
             Source Word documents (.docx)
           </p>
           <div className="space-y-1.5">
             {pair.wordFiles.map((f, i) => (
-              <div key={i} className="flex items-center gap-3 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
-                <div className="w-7 h-7 rounded-md bg-emerald-100 flex items-center justify-center shrink-0">
-                  <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <div key={i} className="flex items-center gap-3 rounded-xl border border-emerald-400/20 bg-emerald-500/[0.08] px-3 py-2">
+                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-emerald-500/15">
+                  <svg className="h-3.5 w-3.5 text-emerald-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
                 </div>
-                <span className="text-xs text-emerald-800 font-medium truncate flex-1">{f.name}</span>
+                <span className="flex-1 truncate text-xs font-medium text-emerald-200">{f.name}</span>
                 <button
                   type="button"
                   onClick={() => removeWord(i)}
                   aria-label={`Remove ${f.name}`}
-                  className="w-5 h-5 flex items-center justify-center rounded text-emerald-400 hover:text-red-500 hover:bg-red-50 transition-colors cursor-pointer"
+                  className="flex h-5 w-5 cursor-pointer items-center justify-center rounded text-emerald-300/60 transition-colors hover:bg-rose-500/10 hover:text-rose-400"
                 >
-                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                  <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </button>
@@ -178,11 +184,11 @@ function PairCard({
             <button
               type="button"
               onClick={() => wordRef.current?.click()}
-              className="w-full rounded-lg border-2 border-dashed border-slate-200 hover:border-emerald-300 hover:bg-emerald-50 py-4 text-sm text-slate-400 hover:text-emerald-600 transition-all duration-150 cursor-pointer"
+              className="w-full cursor-pointer rounded-xl border-2 border-dashed border-white/15 py-4 text-sm text-slate-500 transition-all duration-200 hover:border-emerald-400/50 hover:bg-emerald-500/[0.05] hover:text-emerald-300"
             >
               {pair.wordFiles.length === 0 ? (
                 <>
-                  <svg className="w-5 h-5 mx-auto mb-1 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <svg className="mx-auto mb-1 h-5 w-5 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
                   </svg>
                   Add .docx file(s)
@@ -206,9 +212,28 @@ export default function ExamplesPage() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<IngestionResult | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
   const { status: ingestionStatus, error: ingestionError } = useIngestionStatus(
     result?.example_set_id ?? null
   );
+
+  // Persist the ID once training succeeds so the Generate page can prefill it.
+  useEffect(() => {
+    if (ingestionStatus === "completed" && result) {
+      saveExampleSetId(result.example_set_id);
+    }
+  }, [ingestionStatus, result]);
+
+  const copyId = async () => {
+    if (!result) return;
+    try {
+      await navigator.clipboard.writeText(result.example_set_id);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // clipboard unavailable — the ID is still selectable
+    }
+  };
 
   const updatePair = (id: number, updated: ExamplePair) =>
     setPairs((prev) => prev.map((p) => (p.id === id ? updated : p)));
@@ -245,7 +270,7 @@ export default function ExamplesPage() {
     form.append("grouping", JSON.stringify(grouping));
 
     try {
-      const res = await fetch("/examples", { method: "POST", body: form });
+      const res = await fetch(apiUrl("/examples"), { method: "POST", body: form });
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail ?? `HTTP ${res.status}`);
       setResult(data as IngestionResult);
@@ -257,15 +282,16 @@ export default function ExamplesPage() {
   };
 
   return (
-    <div className="space-y-8 max-w-4xl">
+    <div className="max-w-4xl space-y-10">
       {/* Page header */}
-      <div className="space-y-1">
-        <div className="flex items-center gap-2 text-xs font-semibold text-brand-600 uppercase tracking-wider mb-2">
-          <span className="w-5 h-5 rounded-full bg-brand-100 flex items-center justify-center text-[10px] font-bold text-brand-700">1</span>
-          Step one
-        </div>
-        <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Train on example documents</h1>
-        <p className="text-sm text-slate-500 max-w-xl leading-relaxed">
+      <div className="animate-fade-up space-y-3">
+        <p className="text-xs font-semibold uppercase tracking-[0.25em] text-accent-300">
+          Step 01 — Train
+        </p>
+        <h1 className="font-display text-4xl font-medium tracking-tight text-white md:text-5xl">
+          Teach it your design language
+        </h1>
+        <p className="max-w-xl text-sm leading-relaxed text-slate-400">
           Upload InDesign (.idml) files paired with the Word documents that provided their content.
           Each IDML can reference <em>one or more</em> Word sources. CollegeMirror analyses the pairs
           to learn your design patterns.
@@ -274,42 +300,40 @@ export default function ExamplesPage() {
 
       <form onSubmit={handleSubmit} className="space-y-4">
         {pairs.map((pair, i) => (
-          <PairCard
-            key={pair.id}
-            pair={pair}
-            index={i}
-            onUpdate={(updated) => updatePair(pair.id, updated)}
-            onRemove={() => removePair(pair.id)}
-            canRemove={pairs.length > 1}
-          />
+          <div key={pair.id} className="animate-fade-up" style={{ animationDelay: `${100 + i * 80}ms` }}>
+            <PairCard
+              pair={pair}
+              index={i}
+              onUpdate={(updated) => updatePair(pair.id, updated)}
+              onRemove={() => removePair(pair.id)}
+              canRemove={pairs.length > 1}
+            />
+          </div>
         ))}
 
         <button
           type="button"
           onClick={addPair}
-          className="w-full rounded-xl border-2 border-dashed border-slate-200 hover:border-brand-300 hover:bg-brand-50 py-3.5 text-sm text-slate-400 hover:text-brand-600 transition-all duration-150 flex items-center justify-center gap-2 cursor-pointer"
+          className="animate-fade-up flex w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-white/15 py-3.5 text-sm text-slate-500 transition-all duration-200 hover:border-accent-400/50 hover:bg-accent-500/[0.05] hover:text-accent-300"
+          style={{ animationDelay: "260ms" }}
         >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
           </svg>
           Add another example pair
         </button>
 
         {/* Submit row */}
-        <div className="flex items-center justify-between pt-2">
+        <div className="animate-fade-up flex items-center justify-between pt-2" style={{ animationDelay: "340ms" }}>
           {pairs.length > 0 && (
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-slate-500">
               {completedCount}/{pairs.length} pair{pairs.length !== 1 ? "s" : ""} ready
             </p>
           )}
-          <button
-            type="submit"
-            disabled={!canSubmit}
-            className="ml-auto flex items-center gap-2 px-6 py-2.5 bg-brand-600 hover:bg-brand-700 disabled:bg-slate-200 disabled:text-slate-400 text-white text-sm font-semibold rounded-lg shadow-sm hover:shadow-md transition-all duration-150 cursor-pointer disabled:cursor-not-allowed"
-          >
+          <button type="submit" disabled={!canSubmit} className="btn-primary ml-auto">
             {loading ? (
               <>
-                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                 </svg>
@@ -318,7 +342,7 @@ export default function ExamplesPage() {
             ) : (
               <>
                 Analyse {pairs.length} pair{pairs.length !== 1 ? "s" : ""}
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
                 </svg>
               </>
@@ -328,37 +352,39 @@ export default function ExamplesPage() {
       </form>
 
       {submitError && (
-        <div className="rounded-xl border border-red-200 bg-red-50 p-4 flex items-start gap-3">
-          <svg className="w-4 h-4 text-red-500 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <div className="glass flex items-start gap-3 border-rose-400/30 p-4">
+          <svg className="mt-0.5 h-4 w-4 shrink-0 text-rose-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
-          <p className="text-sm text-red-700">{submitError}</p>
+          <p className="text-sm text-rose-300">{submitError}</p>
         </div>
       )}
 
       {result && (
-        <div className={`rounded-xl border p-5 space-y-4 transition-colors ${
-          ingestionStatus === "completed" ? "border-emerald-200 bg-emerald-50" :
-          ingestionStatus === "failed"    ? "border-red-200 bg-red-50" :
-          "border-brand-200 bg-brand-50"
-        }`}>
+        <div
+          className={`glass space-y-4 p-5 transition-colors duration-300 ${
+            ingestionStatus === "completed" ? "border-emerald-400/30" :
+            ingestionStatus === "failed" ? "border-rose-400/30" :
+            "border-accent-400/25"
+          }`}
+        >
           {/* Status header */}
           <div className="flex items-center gap-3">
             {ingestionStatus === "completed" ? (
-              <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
-                <svg className="w-4 h-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-emerald-400/25 bg-emerald-500/15">
+                <svg className="h-4 w-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                 </svg>
               </div>
             ) : ingestionStatus === "failed" ? (
-              <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center shrink-0">
-                <svg className="w-4 h-4 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-rose-400/25 bg-rose-500/15">
+                <svg className="h-4 w-4 text-rose-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </div>
             ) : (
-              <div className="w-8 h-8 rounded-full bg-brand-100 flex items-center justify-center shrink-0">
-                <svg className="w-4 h-4 text-brand-600 animate-spin" fill="none" viewBox="0 0 24 24">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-accent-400/25 bg-accent-500/15">
+                <svg className="h-4 w-4 animate-spin text-accent-400" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                 </svg>
@@ -366,21 +392,17 @@ export default function ExamplesPage() {
             )}
             <div>
               <p className={`text-sm font-semibold ${
-                ingestionStatus === "completed" ? "text-emerald-800" :
-                ingestionStatus === "failed"    ? "text-red-700" :
-                "text-brand-800"
+                ingestionStatus === "completed" ? "text-emerald-300" :
+                ingestionStatus === "failed" ? "text-rose-300" :
+                "text-accent-300"
               }`}>
                 {ingestionStatus === "completed" ? "Training complete" :
-                 ingestionStatus === "failed"    ? "Training failed" :
+                 ingestionStatus === "failed" ? "Training failed" :
                  "Training in progress…"}
               </p>
-              <p className={`text-xs mt-0.5 ${
-                ingestionStatus === "completed" ? "text-emerald-600" :
-                ingestionStatus === "failed"    ? "text-red-600" :
-                "text-brand-600"
-              }`}>
+              <p className="mt-0.5 text-xs text-slate-400">
                 {ingestionStatus === "completed"
-                  ? "Claude has analysed your examples. Copy the ID below to use on the Generate page."
+                  ? "Claude has analysed your examples. The ID below is saved for the Generate page."
                   : ingestionStatus === "failed"
                   ? "See the error below. Check your files and try again."
                   : "Claude is analysing your example pairs — this takes 30–120 seconds."}
@@ -388,18 +410,55 @@ export default function ExamplesPage() {
             </div>
           </div>
 
+          {/* Shimmer while running */}
+          {ingestionStatus !== "completed" && ingestionStatus !== "failed" && (
+            <div className="h-1 overflow-hidden rounded-full bg-white/[0.06]">
+              <div className="animate-shimmer h-full w-1/3 bg-gradient-to-r from-transparent via-accent-400 to-transparent" />
+            </div>
+          )}
+
           {/* Error detail */}
           {ingestionStatus === "failed" && ingestionError && (
-            <div className="rounded-lg bg-red-100 border border-red-200 px-4 py-3">
-              <p className="text-xs font-mono text-red-700">{ingestionError}</p>
+            <div className="rounded-xl border border-rose-400/25 bg-rose-500/[0.08] px-4 py-3">
+              <p className="font-mono text-xs text-rose-200/90">{ingestionError}</p>
             </div>
           )}
 
           {/* ID — only shown when ready */}
           {ingestionStatus === "completed" && (
-            <div className="bg-white rounded-lg border border-emerald-200 px-4 py-3 space-y-1">
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Example Set ID</p>
-              <p className="text-sm font-mono font-semibold text-slate-800 select-all">{result.example_set_id}</p>
+            <div className="flex items-end justify-between gap-3 rounded-xl border border-emerald-400/20 bg-white/[0.03] px-4 py-3">
+              <div className="min-w-0 space-y-1">
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Example Set ID</p>
+                <p className="select-all truncate font-mono text-sm font-semibold text-slate-100">
+                  {result.example_set_id}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={copyId}
+                aria-label="Copy example set ID"
+                className={`flex shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-all duration-200 ${
+                  copied
+                    ? "border-emerald-400/30 bg-emerald-500/15 text-emerald-300"
+                    : "border-white/10 bg-white/[0.05] text-slate-300 hover:border-accent-400/30 hover:text-accent-300"
+                }`}
+              >
+                {copied ? (
+                  <>
+                    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                    Copied
+                  </>
+                ) : (
+                  <>
+                    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                    </svg>
+                    Copy
+                  </>
+                )}
+              </button>
             </div>
           )}
         </div>

@@ -78,6 +78,13 @@ _EXTRACT_LAYOUT_SCRIPT = r"""
         try { return (obj && obj.isValid) ? obj.name : null; } catch(e) { return null; }
     }
 
+    // Styles that don't override an attribute return a "nothing" object from
+    // the DOM rather than a primitive — coerce those to null.
+    function prim(v) {
+        var t = typeof v;
+        return (t === "string" || t === "number" || t === "boolean") ? v : null;
+    }
+
     function collectFrames(container, masterName) {
         var textFrames = [], imageFrames = [];
         var items;
@@ -176,12 +183,12 @@ _EXTRACT_LAYOUT_SCRIPT = r"""
                 based_on: basedOn,
                 properties: {
                     font_family:  safeFontName(ps.appliedFont),
-                    font_style:   ps.fontStyle  || null,
-                    point_size:   ps.pointSize  || null,
+                    font_style:   prim(ps.fontStyle),
+                    point_size:   prim(ps.pointSize),
                     leading:      leading,
                     alignment:    ps.justification ? ps.justification.toString() : null,
-                    space_before: ps.spaceBefore || null,
-                    space_after:  ps.spaceAfter  || null
+                    space_before: prim(ps.spaceBefore),
+                    space_after:  prim(ps.spaceAfter)
                 }
             });
         } catch(e) {}
@@ -196,8 +203,8 @@ _EXTRACT_LAYOUT_SCRIPT = r"""
                 self_id:     cs.id.toString(),
                 name:        cs.name,
                 font_family: safeFontName(cs.appliedFont),
-                font_style:  cs.fontStyle || null,
-                point_size:  cs.pointSize || null
+                font_style:  prim(cs.fontStyle),
+                point_size:  prim(cs.pointSize)
             });
         } catch(e) {}
     }

@@ -27,6 +27,16 @@ logger = logging.getLogger(__name__)
 # Only Content elements inside ParagraphStyleRange/CharacterStyleRange are mutated
 _CONTENT_TAG = "Content"
 
+# Graphic-frame tags that may hold a placed image, and the placed-image child
+# tags that mark a frame as carrying real artwork (vs a decorative shape).
+_IMAGE_FRAME_TAGS = {"Rectangle", "Oval", "Polygon", "GraphicLine"}
+_PLACED_IMAGE_TAGS = {"Image", "EPS", "PDF", "WMF"}
+
+# A placed image covering at least this fraction of the page is treated as a
+# background / design element and kept; anything smaller is treated as a
+# source-document figure and removed.
+_BACKGROUND_AREA_FRACTION = 0.8
+
 
 class IDMLWriteError(Exception):
     pass
@@ -101,6 +111,121 @@ def _rebuild_story_content(
             content.text = para_text if i == 0 else ""
 
         inner.append(new_psr)
+
+
+def _clear_story_content(story_root: etree._Element) -> None:
+    """Blank every Content element in a story, preserving its style structure.
+
+    Used for text frames the layout plan never assigned content to, so the
+    example's original words don't leak into the generated document.
+    """
+    for content in story_root.findall(".//" + _CONTENT_TAG):
+        content.text = ""
+
+
+_A4_POINTS = (595.275590551, 841.889763778)
+
+
+def _bounds_wh(geometric_bounds: str | None) -> tuple[float, float] | None:
+    """Width/height from a 'y1 x1 y2 x2' GeometricBounds string, or None."""
+    if not geometric_bounds:
+        return None
+    parts = geometric_bounds.split()
+    if len(parts) != 4:
+        return None
+    try:
+        y1, x1, y2, x2 = (float(p) for p in parts)
+    except ValueError:
+        return None
+    return abs(x2 - x1), abs(y2 - y1)
+
+
+def _doc_page_size(zf: zipfile.ZipFile, names: set[str]) -> tuple[float, float]:
+    """Document page size from Resources/Preferences.xml, falling back to A4.
+
+    Real IDML keeps page dimensions in Preferences.xml (not designmap.xml).
+    """
+    if "Resources/Preferences.xml" in names:
+        try:
+            root = etree.fromstring(zf.read("Resources/Preferences.xml"))
+            pref = root.find(".//DocumentPreference")
+            if pref is not None:
+                w = float(pref.get("PageWidth", "0"))
+                h = float(pref.get("PageHeight", "0"))
+                if w > 0 and h > 0:
+                    return w, h
+        except (etree.XMLSyntaxError, TypeError, ValueError):
+            pass
+    return _A4_POINTS
+
+
+def _spread_page_size(
+    spread_root: etree._Element, fallback: tuple[float, float]
+) -> tuple[float, float]:
+    """Page size from the spread's first <Page> GeometricBounds, else fallback."""
+    page = spread_root.find(".//Page")
+    if page is not None:
+        wh = _bounds_wh(page.get("GeometricBounds"))
+        if wh:
+            return wh
+    return fallback
+
+
+def _frame_area(frame: etree._Element) -> float:
+    """Area of a frame in square points.
+
+    Prefers a GeometricBounds attribute (TextFrames), then falls back to the
+    bounding box of the frame's <PathGeometry> anchor points (graphic frames
+    like Rectangle/Oval, which carry no GeometricBounds attribute in real IDML).
+    """
+    wh = _bounds_wh(frame.get("GeometricBounds"))
+    if wh:
+        return wh[0] * wh[1]
+
+    xs: list[float] = []
+    ys: list[float] = []
+    for pt in frame.findall(".//PathPointType"):
+        anchor = (pt.get("Anchor") or "").split()
+        if len(anchor) != 2:
+            continue
+        try:
+            xs.append(float(anchor[0]))
+            ys.append(float(anchor[1]))
+        except ValueError:
+            continue
+    if len(xs) >= 2 and len(ys) >= 2:
+        return abs(max(xs) - min(xs)) * abs(max(ys) - min(ys))
+    return 0.0
+
+
+def _strip_source_images(
+    spread_root: etree._Element,
+    page_w: float,
+    page_h: float,
+    warnings: list[str],
+) -> None:
+    """Remove placed source-document images from a spread, keeping backgrounds.
+
+    A frame is removed only if it (a) actually contains a placed image and
+    (b) covers less than `_BACKGROUND_AREA_FRACTION` of the page — i.e. a
+    content figure rather than a full-bleed background or design element.
+    Decorative shapes with no placed image are always kept.
+    """
+    page_area = page_w * page_h
+    for frame in list(spread_root.iter()):
+        if frame.tag not in _IMAGE_FRAME_TAGS:
+            continue
+        if not any(frame.find(tag) is not None for tag in _PLACED_IMAGE_TAGS):
+            continue  # decorative shape, not a placed image — keep
+        if page_area > 0 and _frame_area(frame) >= _BACKGROUND_AREA_FRACTION * page_area:
+            continue  # full-bleed background / design element — keep
+        parent = frame.getparent()
+        if parent is not None:
+            parent.remove(frame)
+            warnings.append(
+                f"Removed source image frame {frame.get('Self', '?')} "
+                "(content figure — designer to re-place)"
+            )
 
 
 def _clone_spread(
@@ -213,6 +338,11 @@ class IDMLWriter:
                     if fname.startswith("Stories/") and fname.endswith(".xml"):
                         story_roots[fname] = _read_xml(template_zf, fname)
 
+                # Read designmap once for the final spread-list update, and the
+                # document page size (for classifying background vs content images).
+                designmap_root = _read_xml(template_zf, "designmap.xml")
+                doc_page_size = _doc_page_size(template_zf, self._template_names)
+
                 # Process each spread in the layout plan
                 new_spread_filenames: list[str] = []
 
@@ -225,6 +355,10 @@ class IDMLWriter:
                         template_zf, spread_plan.template_spread_source
                     )
                     cloned_spread = _clone_spread(template_spread_root, spread_plan.spread_index)
+
+                    # Drop source-document images, keeping backgrounds/design elements
+                    page_w, page_h = _spread_page_size(cloned_spread, doc_page_size)
+                    _strip_source_images(cloned_spread, page_w, page_h, warnings)
 
                     # Get text frames from the cloned spread
                     text_frames = _find_text_frames_in_spread(cloned_spread)
@@ -255,7 +389,8 @@ class IDMLWriter:
                                     frame_assignment_map[tf_id] = assignment
                                     break
 
-                    # Apply assignments: update stories linked to each frame
+                    # Pass 1 — apply assignments to matched frames.
+                    assigned_story_fnames: set[str] = set()
                     for tf in text_frames:
                         tf_id = tf.get("Self", "")
                         story_id = _get_story_id(tf)
@@ -264,14 +399,33 @@ class IDMLWriter:
                         if assignment is None or not story_id:
                             continue
 
-                        # Find the story file for this frame
                         story_fname = f"Stories/Story_{story_id}.xml"
                         if story_fname not in story_roots:
                             logger.warning("Story file not found: %s", story_fname)
                             continue
 
-                        story_root = story_roots[story_fname]
-                        _rebuild_story_content(story_root, assignment.text, assignment.paragraph_style)
+                        _rebuild_story_content(
+                            story_roots[story_fname], assignment.text, assignment.paragraph_style
+                        )
+                        assigned_story_fnames.add(story_fname)
+
+                    # Pass 2 — clear any text frame that received no assignment, so
+                    # the example's original words don't leak into the output.
+                    for tf in text_frames:
+                        tf_id = tf.get("Self", "")
+                        story_id = _get_story_id(tf)
+                        if not story_id or tf_id in frame_assignment_map:
+                            continue
+
+                        story_fname = f"Stories/Story_{story_id}.xml"
+                        if story_fname not in story_roots or story_fname in assigned_story_fnames:
+                            continue
+
+                        _clear_story_content(story_roots[story_fname])
+                        warnings.append(
+                            f"Cleared unassigned text frame {tf_id} "
+                            f"on spread {spread_plan.spread_index}"
+                        )
 
                     # Write the modified spread to output
                     out_zf.writestr(spread_filename, _serialise_xml(cloned_spread))
@@ -280,8 +434,7 @@ class IDMLWriter:
                 for story_fname, story_root in story_roots.items():
                     out_zf.writestr(story_fname, _serialise_xml(story_root))
 
-                # Update designmap.xml with new spread list
-                designmap_root = _read_xml(template_zf, "designmap.xml")
+                # Update designmap.xml with new spread list (root read above)
                 updated_designmap = _update_designmap(designmap_root, new_spread_filenames)
                 out_zf.writestr("designmap.xml", _serialise_xml(updated_designmap))
 

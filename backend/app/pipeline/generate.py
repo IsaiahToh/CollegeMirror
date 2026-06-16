@@ -96,7 +96,7 @@ async def run_generation(job_id: str, storage: Storage) -> None:
 
         # 6. Update job to completed
         job.status = JobStatus.COMPLETED
-        job.completed_at = datetime.datetime.now(datetime.timezone.utc)
+        job.completed_at = datetime.datetime.now(datetime.UTC)
         job.warnings = warnings
         _save_job(job)
 
@@ -108,5 +108,5 @@ async def run_generation(job_id: str, storage: Storage) -> None:
         logger.exception("Generation failed for job_id=%s", job_id)
         job.status = JobStatus.FAILED
         job.error = str(exc)
-        job.completed_at = datetime.datetime.now(datetime.timezone.utc)
+        job.completed_at = datetime.datetime.now(datetime.UTC)
         _save_job(job)

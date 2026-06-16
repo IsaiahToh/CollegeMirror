@@ -39,7 +39,7 @@ def _mock_analysis(idml_filename: str, word_filenames: list[str]) -> ExampleAnal
     )
 
 
-def test_run_ingestion_single_pair(tmp_path: Path, minimal_idml_file: Path) -> None:
+async def test_run_ingestion_single_pair(tmp_path: Path, minimal_idml_file: Path) -> None:
     """Ingestion with one IDML + one Word doc produces a valid DesignSchema."""
     from backend.app.core.storage import Storage
     from backend.app.pipeline.ingest import run_ingestion
@@ -51,7 +51,7 @@ def test_run_ingestion_single_pair(tmp_path: Path, minimal_idml_file: Path) -> N
     storage.example_set_dir.return_value = tmp_path
 
     with patch("backend.app.pipeline.ingest.map_content", return_value=analysis):
-        schema = run_ingestion(
+        schema = await run_ingestion(
             example_set_id="test_set",
             pairs=[(minimal_idml_file, [word_path])],
             storage=storage,
@@ -64,7 +64,7 @@ def test_run_ingestion_single_pair(tmp_path: Path, minimal_idml_file: Path) -> N
     storage.save_schema.assert_called_once()
 
 
-def test_run_ingestion_multi_word(tmp_path: Path, minimal_idml_file: Path) -> None:
+async def test_run_ingestion_multi_word(tmp_path: Path, minimal_idml_file: Path) -> None:
     """One IDML paired with two Word docs — both filenames appear in the analysis."""
     from backend.app.core.storage import Storage
     from backend.app.pipeline.ingest import run_ingestion
@@ -77,7 +77,7 @@ def test_run_ingestion_multi_word(tmp_path: Path, minimal_idml_file: Path) -> No
     storage.example_set_dir.return_value = tmp_path
 
     with patch("backend.app.pipeline.ingest.map_content", return_value=analysis) as mock_map:
-        schema = run_ingestion(
+        schema = await run_ingestion(
             example_set_id="multi_test",
             pairs=[(minimal_idml_file, [word_a, word_b])],
             storage=storage,
@@ -90,7 +90,7 @@ def test_run_ingestion_multi_word(tmp_path: Path, minimal_idml_file: Path) -> No
     assert schema.example_analyses[0].word_filenames == ["doc_a.docx", "doc_b.docx"]
 
 
-def test_run_ingestion_multiple_pairs(tmp_path: Path, minimal_idml_file: Path) -> None:
+async def test_run_ingestion_multiple_pairs(tmp_path: Path, minimal_idml_file: Path) -> None:
     """Two IDML+Word pairs → two analyses, frame templates derived from both."""
     from backend.app.core.storage import Storage
     from backend.app.pipeline.ingest import run_ingestion
@@ -111,14 +111,14 @@ def test_run_ingestion_multiple_pairs(tmp_path: Path, minimal_idml_file: Path) -
 
     call_count = 0
 
-    def side_effect(*args, **kwargs):
+    def side_effect(*args: object, **kwargs: object) -> ExampleAnalysis:
         nonlocal call_count
         result = analyses[call_count]
         call_count += 1
         return result
 
     with patch("backend.app.pipeline.ingest.map_content", side_effect=side_effect):
-        schema = run_ingestion(
+        schema = await run_ingestion(
             example_set_id="two_pairs",
             pairs=[
                 (minimal_idml_file, [word_a]),

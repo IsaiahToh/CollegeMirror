@@ -1,7 +1,7 @@
 """Unit tests for the Word document reader."""
 
 import io
-import zipfile
+from pathlib import Path
 
 import pytest
 from docx import Document
@@ -33,7 +33,7 @@ def test_read_docx_from_bytes() -> None:
     assert doc.source_filename == "<bytes>"
 
 
-def test_read_docx_from_path(tmp_path) -> None:
+def test_read_docx_from_path(tmp_path: Path) -> None:
     raw = _make_docx([("Hello world", "Normal")])
     p = tmp_path / "test.docx"
     p.write_bytes(raw)
@@ -41,13 +41,13 @@ def test_read_docx_from_path(tmp_path) -> None:
     assert doc.source_filename == "test.docx"
 
 
-def test_missing_file_raises(tmp_path) -> None:
+def test_missing_file_raises(tmp_path: Path) -> None:
     with pytest.raises(WordReadError):
         read_docx(tmp_path / "nonexistent.docx")
 
 
 def test_invalid_bytes_raises() -> None:
-    with pytest.raises(Exception):
+    with pytest.raises(WordReadError):
         read_docx(b"not a docx file at all")
 
 

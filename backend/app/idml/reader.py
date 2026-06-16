@@ -10,7 +10,7 @@ IDML structure:
   Resources/Graphic.xml  — color swatches
 """
 
-import contextlib
+import logging
 import zipfile
 from io import BytesIO
 from pathlib import Path
@@ -30,6 +30,8 @@ from backend.app.idml.models import (
     StyleCatalog,
     TextFrame,
 )
+
+logger = logging.getLogger(__name__)
 
 # IDML XML namespaces
 NS: dict[str, str] = {
@@ -358,8 +360,12 @@ def read_idml(path: Path | str | bytes) -> DesignLayout:
         stories: list[StoryContent] = []
         for sf in story_files:
             story_id = sf.removeprefix("Stories/Story_").removesuffix(".xml")
-            with contextlib.suppress(etree.XMLSyntaxError):
+            try:
                 stories.append(_parse_story(zf.read(sf), story_id))
+            except etree.XMLSyntaxError as exc:
+                logger.warning(
+                    "Skipping malformed story %s in %s: %s", sf, source_filename, exc
+                )
 
     return DesignLayout(
         source_filename=source_filename,

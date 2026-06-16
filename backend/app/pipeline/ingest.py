@@ -179,6 +179,8 @@ async def run_ingestion(
         )
         analysis = map_content(word_docs, layout)
         analyses.append(analysis)
+        if analysis.document_context_notes:
+            context_notes_parts.append(analysis.document_context_notes)
 
     # Aggregate learned design vocabulary
     frame_templates = _derive_frame_templates(layouts, analyses)

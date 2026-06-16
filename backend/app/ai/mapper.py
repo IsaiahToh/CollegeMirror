@@ -6,12 +6,19 @@ to an IDML layout, producing a list of ContentMapping objects.
 import json
 import logging
 
+from pydantic import ValidationError
+
 from backend.app.ai.client import get_llm_client
 from backend.app.idml.models import DesignLayout
 from backend.app.models.design_schema import ContentMapping, ExampleAnalysis, SemanticRole
 from backend.app.word.models import WordDocument
 
 logger = logging.getLogger(__name__)
+
+
+class ContentMappingError(Exception):
+    """Raised when the LLM returns a malformed content mapping."""
+
 
 # JSON Schema for the extract_content_mapping tool
 _MAPPING_SCHEMA: dict = {
@@ -181,17 +188,22 @@ def map_content(
         tool_description="Extract the mapping between Word document elements and InDesign frames.",
     )
 
-    mappings = [
-        ContentMapping(
-            word_element_type=m["word_element_type"],
-            word_text_preview=m["word_text_preview"],
-            idml_frame_id=m["idml_frame_id"],
-            idml_spread_index=m["idml_spread_index"],
-            role=SemanticRole(m["role"]),
-            paragraph_style=m["paragraph_style"],
-        )
-        for m in result.get("mappings", [])
-    ]
+    try:
+        mappings = [
+            ContentMapping(
+                word_element_type=m["word_element_type"],
+                word_text_preview=m["word_text_preview"],
+                idml_frame_id=m["idml_frame_id"],
+                idml_spread_index=m["idml_spread_index"],
+                role=SemanticRole(m["role"]),
+                paragraph_style=m["paragraph_style"],
+            )
+            for m in result.get("mappings", [])
+        ]
+        context_notes = str(result.get("document_context_notes", ""))
+    except (KeyError, TypeError, ValueError, ValidationError) as exc:
+        logger.debug("Malformed LLM mapping response: %r", result)
+        raise ContentMappingError("LLM returned a malformed content mapping") from exc
 
     total_pages = sum(s.page_count for s in idml_layout.spreads)
     word_filenames = [d.source_filename for d in word_docs]
@@ -209,4 +221,5 @@ def map_content(
         mappings=mappings,
         spread_count=len(idml_layout.spreads),
         page_count=total_pages,
+        document_context_notes=context_notes,
     )

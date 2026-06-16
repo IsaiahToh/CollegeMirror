@@ -30,6 +30,11 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
 
     @property
+    def frontend_origins(self) -> list[str]:
+        """`frontend_url` may be a single origin or a comma-separated list."""
+        return [url.strip() for url in self.frontend_url.split(",") if url.strip()]
+
+    @property
     def examples_dir(self) -> Path:
         return self.storage_path / "examples"
 

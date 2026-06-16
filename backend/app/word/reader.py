@@ -7,6 +7,7 @@ Strategy:
   - Sections are delineated by Heading 1 elements
 """
 
+import logging
 import re
 from io import BytesIO
 from pathlib import Path
@@ -25,6 +26,8 @@ from backend.app.word.models import (
     WordSection,
     WordTable,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class WordReadError(Exception):
@@ -116,8 +119,13 @@ def _extract_figures(doc: Document) -> list[WordFigure]:
                     )
                 )
                 idx += 1
-            except Exception:  # noqa: BLE001
-                pass
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(
+                    "Failed to extract image for relationship %s (%s): %s — skipping",
+                    rel.rId,
+                    rel.reltype,
+                    exc,
+                )
     return figures
 
 
@@ -142,7 +150,10 @@ def read_docx(path: Path | str | bytes) -> WordDocument:
         raw = p.read_bytes()
         source_filename = p.name
 
-    doc = Document(BytesIO(raw))
+    try:
+        doc = Document(BytesIO(raw))
+    except Exception as exc:  # noqa: BLE001 — python-docx raises assorted exception types
+        raise WordReadError(f"Could not parse '{source_filename}' as a .docx file") from exc
 
     # Core properties
     title: str | None = None

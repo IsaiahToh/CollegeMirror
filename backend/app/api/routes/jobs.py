@@ -69,8 +69,10 @@ def download_idml(
     if not output_path.exists():
         raise HTTPException(status_code=500, detail="Output file not found on server.")
 
-    # Derive a friendly filename from the input docx name
-    base_name = (job.output_filename or "output").removesuffix(".docx")
+    # Derive a friendly filename from the input docx name. Reduce to a basename
+    # (stripping any path separators) so job metadata can never inject a path.
+    raw_name = (job.output_filename or "output").replace("\\", "/")
+    base_name = Path(raw_name).name.removesuffix(".docx") or "output"
     download_name = f"{base_name}_generated.idml"
 
     return FileResponse(

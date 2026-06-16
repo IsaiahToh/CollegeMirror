@@ -6,7 +6,17 @@ from pathlib import Path
 
 import pytest
 
+from backend.app.core import config
+
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
+
+
+@pytest.fixture(autouse=True)
+def _force_xml_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Tests never use InDesign — always run against the XML reader/writer,
+    regardless of what the developer's .env enables."""
+    monkeypatch.setattr(config, "_settings", None)
+    monkeypatch.setenv("INDESIGN_MCP_ENABLED", "false")
 
 
 def _minimal_idml_bytes() -> bytes:

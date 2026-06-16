@@ -6,12 +6,19 @@ from a new WordDocument and a DesignSchema.
 import json
 import logging
 
+from pydantic import ValidationError
+
 from backend.app.ai.client import get_llm_client
 from backend.app.models.design_schema import DesignSchema, SemanticRole
 from backend.app.models.layout_plan import ContentAssignment, LayoutPlan, SpreadPlan
 from backend.app.word.models import WordDocument
 
 logger = logging.getLogger(__name__)
+
+
+class LayoutPlanningError(Exception):
+    """Raised when the LLM returns a malformed layout plan."""
+
 
 # JSON Schema for the create_layout_plan tool
 _PLAN_SCHEMA: dict = {
@@ -154,31 +161,35 @@ def plan_layout(word_doc: WordDocument, schema: DesignSchema) -> LayoutPlan:
         extra_system_context=schema_context,
     )
 
-    spreads = [
-        SpreadPlan(
-            spread_index=sp["spread_index"],
-            spread_purpose=sp["spread_purpose"],
-            template_spread_source=sp["template_spread_source"],
-            image_frame_notes=sp.get("image_frame_notes", []),
-            assignments=[
-                ContentAssignment(
-                    role=SemanticRole(a["role"]),
-                    paragraph_style=a["paragraph_style"],
-                    text=a["text"],
-                    frame_index=a.get("frame_index", 0),
-                )
-                for a in sp.get("assignments", [])
-            ],
-        )
-        for sp in result.get("spreads", [])
-    ]
+    try:
+        spreads = [
+            SpreadPlan(
+                spread_index=sp["spread_index"],
+                spread_purpose=sp["spread_purpose"],
+                template_spread_source=sp["template_spread_source"],
+                image_frame_notes=sp.get("image_frame_notes", []),
+                assignments=[
+                    ContentAssignment(
+                        role=SemanticRole(a["role"]),
+                        paragraph_style=a["paragraph_style"],
+                        text=a["text"],
+                        frame_index=a.get("frame_index", 0),
+                    )
+                    for a in sp.get("assignments", [])
+                ],
+            )
+            for sp in result.get("spreads", [])
+        ]
 
-    plan = LayoutPlan(
-        document_title=result.get("document_title", word_doc.title or "Untitled"),
-        total_spreads=result.get("total_spreads", len(spreads)),
-        spreads=spreads,
-        global_notes=result.get("global_notes", ""),
-    )
+        plan = LayoutPlan(
+            document_title=result.get("document_title", word_doc.title or "Untitled"),
+            total_spreads=result.get("total_spreads", len(spreads)),
+            spreads=spreads,
+            global_notes=result.get("global_notes", ""),
+        )
+    except (KeyError, TypeError, ValueError, ValidationError) as exc:
+        logger.debug("Malformed LLM layout plan response: %r", result)
+        raise LayoutPlanningError("LLM returned a malformed layout plan") from exc
 
     logger.info(
         "Layout plan created: %d spreads for '%s'",
